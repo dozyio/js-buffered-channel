@@ -1,0 +1,32 @@
+{
+  "name": "buffered-channel",
+  "version": "0.0.1",
+  "description": "A JS/TS buffered channel",
+  "main": "index.js",
+  "type": "module",
+  "author": "dozyio",
+  "license": "MIT",
+  "keywords": [
+    "buffer channel",
+    "typescript"
+  ],
+  "eslintConfig": {
+    "extends": "ipfs",
+    "parserOptions": {
+      "project": true,
+      "sourceType": "module"
+    }
+  },
+  "scripts": {
+    "build": "tsc && vite build",
+    "test": "aegir test",
+    "lint": "aegir lint",
+    "lint:fix": "aegir lint --fix",
+    "example": "npm run build && echo 'Visit http://localhost:3000/example/' && CI=1 npx vite"
+  },
+  "devDependencies": {
+    "aegir": "^44.1.4",
+    "vite": "^5.4.9",
+    "vite-plugin-dts": "^4.2.4"
+  }
+}
