@@ -11,7 +11,8 @@ export default defineConfig({
       formats: ['es']
     },
     sourcemap: true,
-    emptyOutDir: true
+    emptyOutDir: true,
+    minify: true
   },
   ignorePatterns: ['test/*'],
   server: {

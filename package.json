@@ -19,13 +19,15 @@
   },
   "scripts": {
     "build": "tsc && vite build",
-    "test": "aegir test",
+    "test": "npm run build && playwright test",
     "lint": "aegir lint",
     "lint:fix": "aegir lint --fix",
     "example": "npm run build && echo 'Visit http://localhost:3000/example/' && CI=1 npx vite"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.1",
     "aegir": "^44.1.4",
+    "playwright": "^1.48.1",
     "vite": "^5.4.9",
     "vite-plugin-dts": "^4.2.4"
   }

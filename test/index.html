@@ -1,0 +1,69 @@
+<!-- test/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BufferedChannel Test</title>
+</head>
+<body>
+  <h1>BufferedChannel Test Page</h1>
+  <button id="startTest">Start Test</button>
+  <div id="log"></div>
+
+  <script type="module">
+    import { BufferedChannel } from '../dist/buffered-channel.js'
+
+    const logDiv = document.getElementById('log')
+
+    function log(message) {
+      const p = document.createElement('p')
+      p.textContent = message
+      logDiv.appendChild(p)
+      console.log(message) // Also log to console for Playwright to capture
+    }
+
+    document.getElementById('startTest').addEventListener('click', async () => {
+      // Initialize the worker
+      const worker = new Worker('worker.js', { type: 'module' })
+
+      // Create a MessageChannel for communication
+      const messageChannel = new MessageChannel()
+
+      // Initialize BufferedChannel on the main thread's port
+      const mainChannel = new BufferedChannel(messageChannel.port1, 4)
+
+      // Expose mainChannel to the window for Playwright tests
+      window.mainChannel = mainChannel
+
+      // Initiate send flow on main channel
+      mainChannel.initSendFlow()
+
+      // Send the other port to the worker via postMessage
+      worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
+
+      // Listen for messages from worker
+      const receivedMessages = []
+      ;(async () => {
+        for await (const msg of mainChannel.receive) {
+          receivedMessages.push(msg)
+          log(`Received: ${msg}`)
+          if (receivedMessages.length === 5) {
+            log('All messages received. Terminating worker.')
+            worker.terminate()
+          }
+        }
+      })()
+
+      // Send messages from main channel
+      const messagesToSend = ['Message 1', 'Message 2', 'Message 3', 'Message 4', 'Message 5']
+      for (const msg of messagesToSend) {
+        await mainChannel.send(msg)
+        log(`Sent: ${msg}`)
+      }
+
+      // Optionally, terminate the worker after sending
+      // await mainChannel.send('done')
+    })
+  </script>
+</body>
+</html>

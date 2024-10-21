@@ -5,13 +5,14 @@ export default class BufferedChannel {
   private readonly bufferSize: number
   private readonly receiveQueue: any[] = []
   private readonly receiveResolvers: Array<(result: IteratorResult<any>) => void> = []
-  private readonly sendQueue: Array<{ message: any, resolve: any, reject: any }> = []
+  private readonly sendQueue: Array<{ message: any, transfer: any[], resolve: any, reject: any }> = []
   private readonly sendResolvers: Array<() => void> = []
-  private inFlight: number = 0
+  // private readonly messageIds: Set<string>
 
-  constructor (port: MessagePort, bufferSize: number = 4) {
+  constructor (port: MessagePort, bufferSize: number = 1) {
     this.port = port
     this.bufferSize = bufferSize
+    // this.messageIds = new Set<string>()
 
     // Initialize the port listener
     this.port.onmessage = (event) => {
@@ -20,39 +21,18 @@ export default class BufferedChannel {
       // Handle incoming messages
       this.enqueueReceive(event.data)
 
-      // Handle the echo: resolve the first sendResolver
+      // Handle the acknowledgment: resolve the first sendResolver
       if (this.sendResolvers.length > 0) {
         const resolve = this.sendResolvers.shift()
         if (resolve !== undefined) {
+          // this.messageIds.delete(event.data.id)
           resolve()
-          this.inFlight--
         }
       }
 
       // Try to send next message from sendQueue
       this.trySendQueued()
     }
-
-    // Handle port closure
-    // this.port.onclose = () => {
-    //   // console.log('BufferedChannel: Port closed.');
-    //
-    //   // Reject all pending receive promises
-    //   this.receiveResolvers.forEach((resolve) =>
-    //     resolve({ value: undefined, done: true })
-    //   )
-    //   this.receiveResolvers = []
-    //
-    //   // Resolve all pending send promises
-    //   this.sendResolvers.forEach((resolve) => resolve())
-    //   this.sendResolvers = []
-    //
-    //   // Reject all queued sends
-    //   while (this.sendQueue.length > 0) {
-    //     const { reject } = this.sendQueue.shift()
-    //     reject(new Error('Port closed'))
-    //   }
-    // }
   }
 
   // Internal method to enqueue received messages
@@ -87,24 +67,22 @@ export default class BufferedChannel {
   }
 
   // Method to send messages with backpressure
-  async send (message: any): Promise<void> {
-    if (this.sendResolvers.length < this.bufferSize) {
-      this.inFlight++
+  async send (message: any, transfer: Transferable[] = []): Promise<void> {
+    if (this.sendResolvers.length < this.bufferSize) { // If have space in buffer, send immediately
       // console.log(`BufferedChannel: Sending message "${message}" immediately. In-flight: ${this.sendResolvers.length + 1}, Buffer size: ${this.bufferSize}`);
 
       // Send the message immediately
-      this.port.postMessage(message)
+      this.port.postMessage(message, transfer)
 
       // Create a Promise that will resolve when echo is received
       return new Promise<void>((resolve, _reject) => {
         this.sendResolvers.push(resolve)
       })
-    } else {
+    } else { // Else enqueue the message
       // console.log(`BufferedChannel: Buffer full. Enqueuing message "${message}". Queue length: ${this.sendQueue.length + 1}`);
 
-      // Buffer is full, enqueue the message
       return new Promise<void>((resolve, reject) => {
-        this.sendQueue.push({ message, resolve, reject })
+        this.sendQueue.push({ message, transfer, resolve, reject })
       })
     }
   }
@@ -121,12 +99,12 @@ export default class BufferedChannel {
       }
 
       try {
-        this.port.postMessage(msg.message)
-        this.inFlight++
+        this.port.postMessage(msg.message, msg.transfer)
         // console.log(`BufferedChannel: Sent enqueued message "${message}". In-flight: ${this.sendResolvers.length + 1}`);
         this.sendResolvers.push(msg.resolve)
       } catch (error) {
-        // console.error(`BufferedChannel: Error sending message "${message}":`, error);
+        // eslint-disable-next-line no-console
+        console.error(`BufferedChannel: Error sending message "${msg.message}":`, error)
         msg.reject(error)
       }
     }
