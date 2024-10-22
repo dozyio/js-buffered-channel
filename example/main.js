@@ -4,9 +4,10 @@
 import { BufferedChannel } from '../dist/buffered-channel.js' // Adjust the import path as necessary
 
 let messageCounter = 0
+
 // Utility function to generate unique IDs
 function generateUniqueId () {
-  return `msg-${++messageCounter}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  return `msg-${++messageCounter}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 // Create a Web Worker with type 'module' using new URL for proper bundling
@@ -17,7 +18,7 @@ const bufferSize = 4
 const mainChannel = new BufferedChannel(
   messageChannel.port1,
   bufferSize,
-  { debug: false, name: 'main' }
+  { debug: false, name: 'main', throwOnError: false }
 )
 
 // Send the other port to the worker
@@ -31,7 +32,7 @@ worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel
 async function * generateData (count) {
   for (let i = 1; i <= count; i++) {
     // Create transferable data (e.g., ArrayBuffer)
-    const buffer = new ArrayBuffer(1024 * 1024)
+    const buffer = new ArrayBuffer(1024 * 256)
     const view = new Uint8Array(buffer)
     view.fill(i) // Populate the buffer with sample data
 
@@ -85,7 +86,7 @@ const sendMessage = async (buffer) => {
   }
 
   try {
-    await mainChannel.sendData(message, [buffer]) // Transfer the buffer with a 5-second timeout
+    await mainChannel.sendData(message, [buffer], 100) // Transfer the buffer with a 100ms timeout
     // console.log(`Main Sent: ID=${id}, Data=ArrayBuffer(${buffer.byteLength} bytes)`)
   } catch (error) {
     console.error(`Failed to send message ID=${id}:`, error)
@@ -94,11 +95,13 @@ const sendMessage = async (buffer) => {
 
 // Start sending all data
 (async () => {
-  const itemCount = 100_000
+  const itemCount = 10_000
   const startTime = Date.now()
   const dataIterator = generateData(itemCount)
   await sendData(dataIterator, bufferSize)
   console.log('All data has been sent.')
+
+  mainChannel.logPerformanceMetrics()
 
   // Optionally, send termination signal to the worker
   worker.postMessage({ type: 'terminate', data: 'terminate' })

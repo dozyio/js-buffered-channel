@@ -1,10 +1,14 @@
 /* eslint-disable no-console */
 // example/worker.js
 
-import { BufferedChannel } from '../dist/buffered-channel.js' // Adjust the import path as necessary
+import { BufferedChannel } from '../dist/buffered-channel.js'
 
 const bufferSize = 4
 let workerChannel = null
+
+const errorRate = 0
+const delayRate = 0
+const delayMs = 200
 
 // Listen for the initial message to set up the channel
 self.onmessage = (event) => {
@@ -12,7 +16,7 @@ self.onmessage = (event) => {
     case 'init':
       if (event.data.port) {
         const port = event.data.port
-        workerChannel = new BufferedChannel(port, bufferSize, { debug: false, name: 'worker' })
+        workerChannel = new BufferedChannel(port, bufferSize, { debug: false, name: 'worker', throwOnError: false })
 
         // Start handling messages
         handleMessages()
@@ -51,28 +55,36 @@ async function handleMessages () {
 }
 
 /**
- * Processes a single message: simulates a delay, modifies the ArrayBuffer, and sends an acknowledgment.
+ * Processes a single message and sends an acknowledgment.
  *
  * @param {DataMessage<ArrayBuffer>} msg - The message to process.
  */
 async function processMessage (msg) {
   try {
     // Simulate processing delay
-    // await new Promise(resolve => setTimeout(resolve, 1000))
+    if (Math.random() < delayRate) {
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+    }
 
-    // Example processing: modify the buffer
-    // const view = new Uint8Array(msg.data)
-    // view[0] = view[0] + 1 // Increment the first byte as an example
+    // Simulate errors
+    if (Math.random() < errorRate) {
+      throw new Error('Random error')
+    }
 
-    // Create acknowledgment with processed data
+    // Create acknowledgment with dummy response data
+    const buffer = new ArrayBuffer(1024 * 1)
+    const view = new Uint8Array(buffer)
+    view.fill(8)
+
     const ack = {
       id: msg.id,
       type: 'ack',
-      status: 'ack'
+      status: 'ack',
+      data: buffer
     }
 
     // Send acknowledgment
-    await workerChannel.sendAck(ack)
+    await workerChannel.sendAck(ack, [buffer])
     // console.log(`Worker Sent Ack: ID=${ack.id}, Status=${ack.status}`)
   } catch (error) {
     console.error(`Worker Error Processing Message ID=${msg.id}:`, error)
