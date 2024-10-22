@@ -1,3 +1,3 @@
-import BufferedChannel from './buffered-channel'
+import { BufferedChannel } from './buffered-channel'
 
 export { BufferedChannel }

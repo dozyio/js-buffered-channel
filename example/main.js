@@ -1,117 +1,82 @@
-// main.js
-import { BufferedChannel } from '../dist/buffered-channel.js'
+/* eslint-disable no-console */
+// example/main.js
 
-// Function to create and initialize the buffered channel
-function createBufferedChannel (worker, bufferSize = 4) {
-  const channel = new MessageChannel()
-  worker.postMessage({ type: 'init', port: channel.port1 }, [channel.port1])
+import { BufferedChannel } from '../dist/buffered-channel.js' // Named import
 
-  const bufferedChannel = new BufferedChannel(channel.port2, bufferSize)
-  bufferedChannel.initSendFlow()
+// Create a Web Worker with type 'module' using new URL for proper bundling
+const worker = new Worker(new URL('worker.js', import.meta.url), { type: 'module' })
 
-  return bufferedChannel
-}
+const messageChannel = new MessageChannel()
+const bufferSize = 4
+const mainChannel = new BufferedChannel(messageChannel.port1, bufferSize, 'main')
 
-// Initialize the worker as a module
-const worker = new Worker('worker.js', { type: 'module' })
+// Send the other port to the worker
+worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
 
-// Create the buffered channel with a buffer size
-const bufferSize = 4 // Ensure this matches the worker's bufferSize
-const channel = createBufferedChannel(worker, bufferSize)
-
-// Total number of messages to send
-const totalMessages = 1_000
-
-// Variable to track the number of received messages
-let totalReceived = 0
-
-// Current message index
-let current = 0
-
-// Function to get the next message index atomically
-function getNextMessage () {
-  if (current >= totalMessages) {
-    return null
+/**
+ * Async generator that yields messages with a simulated delay.
+ *
+ * @param {number} count - The total number of messages to generate.
+ */
+async function * generateMessages (count) {
+  for (let i = 1; i <= count; i++) {
+    // Simulate asynchronous message production delay
+    yield `Message ${i}`
   }
-  const msg = `Message ${current} from main thread`
-  current++
-  return msg
 }
 
-// Function to manage concurrent sends up to bufferSize
-async function sendMessagesConcurrently () {
-  async function send (senderId) {
-    while (true) {
-      const msg = getNextMessage()
-      if (!msg) break
+// Define the send function
+const sendFunc = async (msg) => {
+  await mainChannel.send(msg)
+  console.log(`Main Sent: ${msg}`)
+}
 
-      try {
-        await channel.send(msg)
-        // eslint-disable-next-line no-console
-        console.log(`Main sent: ${msg} by sender ${senderId}`);
-      } catch (error) {
-        // eslint-disable-next-line no-console
+/**
+ * Sends messages from an async iterator with controlled concurrency.
+ *
+ * @param {AsyncIterable<string>} messageIterator - The async iterator providing messages.
+ * @param {Function} sendFunc - The asynchronous send function.
+ * @param {number} bufferSize - The maximum number of concurrent send operations.
+ */
+async function sendMessages (messageIterator, sendFunc, bufferSize) {
+  const activePromises = new Set()
+
+  for await (const msg of messageIterator) {
+    // Start sending the message and add the promise to the active set
+    const sendPromise = sendFunc(msg)
+      .catch(error => {
         console.error(`Error sending ${msg}:`, error)
-      }
+      })
+      .finally(() => {
+        // Remove the promise from the active set once it's settled
+        activePromises.delete(sendPromise)
+      })
+
+    activePromises.add(sendPromise)
+
+    // If we've reached the buffer size, wait for any promise to settle
+    if (activePromises.size >= bufferSize) {
+      await Promise.race(activePromises)
     }
   }
 
-  const sendPromises = []
-  for (let i = 0; i < bufferSize; i++) {
-    sendPromises.push(send(i + 1))
-  }
-
-  await Promise.all(sendPromises)
+  // Await all remaining active send operations
+  await Promise.all(activePromises)
 }
 
-// Function to gracefully terminate the worker
-async function terminateWorker () {
-  try {
-    // Send a 'done' message to signal the worker to terminate
-    await channel.send('done')
-    // eslint-disable-next-line no-console
-    console.log('Sent termination signal to worker.');
-
-    // Close the message port
-    channel.port.close()
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Error terminating worker:', error)
-  }
-}
-
-const tstart = Date.now()
-
-// Sending messages to the worker with backpressure
-sendMessagesConcurrently().then(() => {
-  // eslint-disable-next-line no-console
-  console.log('All messages sent.');
-});
-
-// Receiving messages from the worker
+// Start sending all messages, leveraging the semaphore for concurrency control
 (async () => {
-  try {
-    for await (const msg of channel.receive) {
-      if (msg.startsWith('Echo: ')) {
-        // eslint-disable-next-line no-console
-        console.log('Main received:', msg);
-        totalReceived++
+  const messageIterator = generateMessages(1_000) // Generate messages
+  await sendMessages(messageIterator, sendFunc, bufferSize)
+  console.log('All messages have been sent.')
 
-        if (totalReceived === totalMessages) {
-          // eslint-disable-next-line no-console
-          console.log('All messages received.');
-          const tend = Date.now()
-          document.getElementById('time').innerText = `${tend - tstart} ms`
-          await terminateWorker()
-          worker.terminate() // Ensure worker is terminated
-        }
-      } else {
-        // eslint-disable-next-line no-console
-        console.warn('Main received unexpected message:', msg)
-      }
-    }
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Error receiving messages:', error)
+  // Optional: Send termination signal to the worker
+  worker.postMessage({ type: 'terminate' })
+})()
+
+// Receiving messages
+; (async () => {
+  for await (const msg of mainChannel.receive) {
+    console.log(`Main Received: ${msg}`)
   }
 })()
