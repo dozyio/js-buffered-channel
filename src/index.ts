@@ -1,3 +1,3 @@
-import { BufferedChannel } from './buffered-channel'
+import { BufferedChannel, type DataMessage } from './buffered-channel'
 
-export { BufferedChannel }
+export { BufferedChannel, type DataMessage }

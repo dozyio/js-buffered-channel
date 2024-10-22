@@ -1,7 +1,14 @@
 /* eslint-disable no-console */
 // example/main.js
 
-import { BufferedChannel } from '../dist/buffered-channel.js' // Named import
+import { BufferedChannel } from '../dist/buffered-channel.js' // Adjust the import path as necessary
+
+let messageCounter = 0
+
+// Utility function to generate unique IDs
+function generateUniqueId () {
+  return `msg-${++messageCounter}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+}
 
 // Create a Web Worker with type 'module' using new URL for proper bundling
 const worker = new Worker(new URL('worker.js', import.meta.url), { type: 'module' })
@@ -11,47 +18,42 @@ const bufferSize = 4
 const mainChannel = new BufferedChannel(
   messageChannel.port1,
   bufferSize,
-  {
-    debug: true, name: 'main'
-  }
+  { debug: false, name: 'main', throwOnError: false }
 )
 
 // Send the other port to the worker
 worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
 
 /**
- * Async generator that yields messages with a simulated delay.
+ * Async generator that yields data with a simulated delay.
  *
- * @param {number} count - The total number of messages to generate.
+ * @param {number} count - The total number of data items to generate.
  */
-async function * generateMessages (count) {
+async function * generateData (count) {
   for (let i = 1; i <= count; i++) {
-    // Simulate asynchronous message production delay
-    yield `Message ${i}`
+    // Create transferable data (e.g., ArrayBuffer)
+    const buffer = new ArrayBuffer(1024 * 256)
+    const view = new Uint8Array(buffer)
+    view.fill(i) // Populate the buffer with sample data
+
+    yield buffer
   }
 }
 
-// Define the send function
-const sendFunc = async (msg) => {
-  await mainChannel.send(msg)
-  // console.log(`Main Sent: ${msg}`)
-}
-
 /**
- * Sends messages from an async iterator with controlled concurrency.
+ * Sends data using BufferedChannel with controlled concurrency.
  *
- * @param {AsyncIterable<string>} messageIterator - The async iterator providing messages.
- * @param {Function} sendFunc - The asynchronous send function.
+ * @param {AsyncIterable<ArrayBuffer>} dataIterator - The async iterator providing data.
  * @param {number} bufferSize - The maximum number of concurrent send operations.
  */
-async function sendMessages (messageIterator, sendFunc, bufferSize) {
+async function sendData (dataIterator, bufferSize) {
   const activePromises = new Set()
 
-  for await (const msg of messageIterator) {
-    // Start sending the message and add the promise to the active set
-    const sendPromise = sendFunc(msg)
+  for await (const buffer of dataIterator) {
+    // Start sending the data and add the promise to the active set
+    const sendPromise = sendMessage(buffer)
       .catch(error => {
-        console.error(`Error sending ${msg}:`, error)
+        console.error('Error sending data:', error)
       })
       .finally(() => {
         // Remove the promise from the active set once it's settled
@@ -70,19 +72,40 @@ async function sendMessages (messageIterator, sendFunc, bufferSize) {
   await Promise.all(activePromises)
 }
 
-// Start sending all messages, leveraging the semaphore for concurrency control
-(async () => {
-  const messageIterator = generateMessages(1_000) // Generate messages
-  await sendMessages(messageIterator, sendFunc, bufferSize)
-  console.log('All messages have been sent.')
-
-  // Optional: Send termination signal to the worker
-  worker.postMessage({ type: 'terminate' })
-})()
-
-// Receiving messages
-; (async () => {
-  for await (const msg of mainChannel.receive) {
-    // console.log(`Main Received: ${msg}`)
+/**
+ * Sends a single data message through BufferedChannel.
+ *
+ * @param {ArrayBuffer} buffer - The data to send.
+ */
+const sendMessage = async (buffer) => {
+  const id = generateUniqueId()
+  const message = {
+    id,
+    type: 'data',
+    data: buffer
   }
+
+  try {
+    await mainChannel.sendData(message, [buffer], 100) // Transfer the buffer with a 100ms timeout
+    // console.log(`Main Sent: ID=${id}, Data=ArrayBuffer(${buffer.byteLength} bytes)`)
+  } catch (error) {
+    console.error(`Failed to send message ID=${id}:`, error)
+  }
+}
+
+// Start sending all data
+(async () => {
+  const itemCount = 10_000
+  const startTime = Date.now()
+  const dataIterator = generateData(itemCount)
+  await sendData(dataIterator, bufferSize)
+  console.log('All data has been sent.')
+
+  mainChannel.logPerformanceMetrics()
+
+  // Optionally, send termination signal to the worker
+  worker.postMessage({ type: 'terminate', data: 'terminate' })
+  // console.log('Worker has been terminated.')
+  const endTime = Date.now()
+  document.getElementById('time').innerText = `Time: ${endTime - startTime} ms - items: ${itemCount}`
 })()

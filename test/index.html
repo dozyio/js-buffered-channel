@@ -3,15 +3,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BufferedChannel Test</title>
+  <title>BufferedChannel Test with IDs and Transferables</title>
 </head>
 <body>
-  <h1>BufferedChannel Test Page</h1>
+  <h1>BufferedChannel Test Page with IDs and Transferables</h1>
   <button id="startTest">Start Test</button>
   <div id="log"></div>
 
   <script type="module">
-    import { BufferedChannel } from '../dist/buffered-channel.js'
+    import { BufferedChannel, DataMessage, AckMessage } from '../dist/buffered-channel.js'
 
     const logDiv = document.getElementById('log')
 
@@ -30,47 +30,68 @@
       const messageChannel = new MessageChannel()
 
       // Initialize BufferedChannel on the main thread's port
-      const mainChannel = new BufferedChannel(messageChannel.port1, 2, 'main') // bufferSize = 2
-
-      // Expose mainChannel to the window for Playwright tests
-      window.mainChannel = mainChannel
-
-      // Start receiving messages
-      ;(async () => {
-        for await (const msg of mainChannel.receive) {
-          log(`Received: ${msg}`)
-          if (msg.startsWith('Echo:')) {
-            const receivedCount = logDiv.querySelectorAll('p').length
-            if (receivedCount >= 11) { // 5 sent, 5 received, 1 termination
-              log('All messages received. Terminating worker.')
-              worker.terminate()
-            }
-          }
-        }
-      })()
+      const mainChannel = new BufferedChannel(
+        messageChannel.port1,
+        2, // bufferSize = 2
+        { debug: true, name: 'main' }
+      )
 
       // Send the other port to the worker via postMessage
       worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
 
-      // Async generator for messages
-      async function* generateMessages() {
-        const messagesToSend = ['Message 1', 'Message 2', 'Message 3', 'Message 4', 'Message 5']
-        for (const msg of messagesToSend) {
-          yield msg
-          // Optionally, add a delay between messages
+      // Define expected messages and acknowledgments
+      const expectedSentMessages = ['Message 1', 'Message 2', 'Message 3', 'Message 4', 'Message 5']
+      const expectedAcknowledgments = expectedSentMessages.map(msg => `Processed ArrayBuffer with first byte: ${parseInt(msg.split(' ')[1]) + 1}`)
+
+      /**
+       * Async generator that yields data with a simulated delay.
+       *
+       * @param {number} count - The total number of data items to generate.
+       */
+      async function* generateData(count) {
+        for (let i = 1; i <= count; i++) {
+          // Create transferable data (e.g., ArrayBuffer)
+          const buffer = new ArrayBuffer(8)
+          const view = new Uint8Array(buffer)
+          view[0] = i // Populate the buffer with sample data
+
+          yield buffer
+          // Optional: add a delay between messages
           await new Promise(resolve => setTimeout(resolve, 500))
         }
       }
 
-      // Function to send messages from the async generator with controlled concurrency
-      async function sendMessages(messageIterator, sendFunc, bufferSize) {
+      // Function to send messages
+      const sendMessage = async (buffer) => {
+        const id = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        const message = {
+          id,
+          type: 'data',
+          data: buffer
+        }
+
+        try {
+          await mainChannel.sendData(message, [buffer], 5000) // Transfer the buffer with a 5-second timeout
+          log(`Sent: ID=${id}, Data=ArrayBuffer(${buffer.byteLength} bytes)`)
+        } catch (error) {
+          log(`Failed to send message ID=${id}: ${error}`)
+        }
+      }
+
+      /**
+       * Sends data using BufferedChannel with controlled concurrency.
+       *
+       * @param {AsyncIterable<ArrayBuffer>} dataIterator - The async iterator providing data.
+       * @param {number} bufferSize - The maximum number of concurrent send operations.
+       */
+      async function sendData(dataIterator, bufferSize) {
         const activePromises = new Set()
 
-        for await (const msg of messageIterator) {
-          // Start sending the message and add the promise to the active set
-          const sendPromise = sendFunc(msg)
+        for await (const buffer of dataIterator) {
+          // Start sending the data and add the promise to the active set
+          const sendPromise = sendMessage(buffer)
             .catch(error => {
-              console.error(`Error sending ${msg}:`, error)
+              log(`Error sending data: ${error}`)
             })
             .finally(() => {
               // Remove the promise from the active set once it's settled
@@ -89,15 +110,14 @@
         await Promise.all(activePromises)
       }
 
-      // Define the send function
-      const sendFunc = async (msg) => {
-        await mainChannel.send(msg)
-        log(`Sent: ${msg}`)
-      }
+      // Start sending all data
+      const dataIterator = generateData(5) // Generate 5 data items
+      await sendData(dataIterator, 2) // bufferSize = 2
+      log('All messages have been sent.')
 
-      // Start sending all messages
-      await sendMessages(generateMessages(), sendFunc, 2) // bufferSize = 2
-      log('All messages sent.')
+      // Optionally, send termination signal to the worker
+      worker.postMessage({ type: 'terminate', data: 'terminate' })
+      log('Worker has been terminated.')
     })
   </script>
 </body>
