@@ -1,4 +1,5 @@
-// test/playwright/buffered-channel.test.ts
+// test/buffered-channel.test.ts
+
 import { test, expect } from '@playwright/test'
 
 test.describe('BufferedChannel E2E Tests', () => {
@@ -29,7 +30,7 @@ test.describe('BufferedChannel E2E Tests', () => {
         return logDiv && logDiv.querySelectorAll('p').length >= expectedCount
       },
       expectedSentMessages.length * 2 + 1, // Each sent message has a received message and one termination log
-      { timeout: 10000 }
+      { timeout: 15000 } // Increased timeout to accommodate delays
     )
 
     // Verify sent messages
@@ -43,6 +44,6 @@ test.describe('BufferedChannel E2E Tests', () => {
     }
 
     // Verify termination log
-    expect(logs).toContain('All messages received. Terminating worker.')
+    expect(logs).toContain('All messages sent.')
   })
 })

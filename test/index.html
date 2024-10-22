@@ -30,39 +30,74 @@
       const messageChannel = new MessageChannel()
 
       // Initialize BufferedChannel on the main thread's port
-      const mainChannel = new BufferedChannel(messageChannel.port1, 4)
+      const mainChannel = new BufferedChannel(messageChannel.port1, 2, 'main') // bufferSize = 2
 
       // Expose mainChannel to the window for Playwright tests
       window.mainChannel = mainChannel
 
-      // Initiate send flow on main channel
-      mainChannel.initSendFlow()
-
-      // Send the other port to the worker via postMessage
-      worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
-
-      // Listen for messages from worker
-      const receivedMessages = []
+      // Start receiving messages
       ;(async () => {
         for await (const msg of mainChannel.receive) {
-          receivedMessages.push(msg)
           log(`Received: ${msg}`)
-          if (receivedMessages.length === 5) {
-            log('All messages received. Terminating worker.')
-            worker.terminate()
+          if (msg.startsWith('Echo:')) {
+            const receivedCount = logDiv.querySelectorAll('p').length
+            if (receivedCount >= 11) { // 5 sent, 5 received, 1 termination
+              log('All messages received. Terminating worker.')
+              worker.terminate()
+            }
           }
         }
       })()
 
-      // Send messages from main channel
-      const messagesToSend = ['Message 1', 'Message 2', 'Message 3', 'Message 4', 'Message 5']
-      for (const msg of messagesToSend) {
+      // Send the other port to the worker via postMessage
+      worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
+
+      // Async generator for messages
+      async function* generateMessages() {
+        const messagesToSend = ['Message 1', 'Message 2', 'Message 3', 'Message 4', 'Message 5']
+        for (const msg of messagesToSend) {
+          yield msg
+          // Optionally, add a delay between messages
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+      }
+
+      // Function to send messages from the async generator with controlled concurrency
+      async function sendMessages(messageIterator, sendFunc, bufferSize) {
+        const activePromises = new Set()
+
+        for await (const msg of messageIterator) {
+          // Start sending the message and add the promise to the active set
+          const sendPromise = sendFunc(msg)
+            .catch(error => {
+              console.error(`Error sending ${msg}:`, error)
+            })
+            .finally(() => {
+              // Remove the promise from the active set once it's settled
+              activePromises.delete(sendPromise)
+            })
+
+          activePromises.add(sendPromise)
+
+          // If we've reached the buffer size, wait for any promise to settle
+          if (activePromises.size >= bufferSize) {
+            await Promise.race(activePromises)
+          }
+        }
+
+        // Await all remaining active send operations
+        await Promise.all(activePromises)
+      }
+
+      // Define the send function
+      const sendFunc = async (msg) => {
         await mainChannel.send(msg)
         log(`Sent: ${msg}`)
       }
 
-      // Optionally, terminate the worker after sending
-      // await mainChannel.send('done')
+      // Start sending all messages
+      await sendMessages(generateMessages(), sendFunc, 2) // bufferSize = 2
+      log('All messages sent.')
     })
   </script>
 </body>

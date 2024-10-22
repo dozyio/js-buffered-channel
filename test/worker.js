@@ -1,8 +1,10 @@
+// test/worker.js
 /* eslint-disable no-console */
-// example/worker.js
+// test/worker.js
+
 import { BufferedChannel } from '../dist/buffered-channel.js' // Named import
 
-const bufferSize = 4
+const bufferSize = 2
 let workerChannel = null
 
 // Listen for the initial message to set up the channel
@@ -42,8 +44,8 @@ async function handleMessages () {
  */
 async function processMessage (msg) {
   try {
-    // Simulate processing delay of 1 second
-    // await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (1000 - 1 + 1) + 1)))
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 1))
 
     // Echo the message back directly without using BufferedChannel.send()
     workerChannel.port.postMessage(`Echo: ${msg}`)
