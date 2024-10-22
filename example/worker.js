@@ -9,7 +9,14 @@ let workerChannel = null
 self.onmessage = (event) => {
   if (event.data.type === 'init' && event.data.port) {
     const port = event.data.port
-    workerChannel = new BufferedChannel(port, bufferSize, 'worker')
+    workerChannel = new BufferedChannel(
+      port,
+      bufferSize,
+      {
+        debug: true,
+        name: 'worker'
+      }
+    )
 
     // Start handling messages
     handleMessages()
@@ -25,9 +32,9 @@ async function handleMessages () {
       break
     }
 
-    console.log(`Worker Received: ${msg}`)
+    // console.log(`Worker Received: ${msg}`)
 
-    // Process each message concurrently by calling a separate function
+    // Process each message concurrently
     processMessage(msg)
   }
 
@@ -43,11 +50,11 @@ async function handleMessages () {
 async function processMessage (msg) {
   try {
     // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 100)))
+    // await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 100)))
 
     // Echo the message back directly without using BufferedChannel.send()
     workerChannel.port.postMessage(`Echo: ${msg}`)
-    console.log(`Worker Sent: Echo: ${msg}`)
+    // console.log(`Worker Sent: Echo: ${msg}`)
   } catch (error) {
     console.error(`Worker Error Processing Message "${msg}":`, error)
   }

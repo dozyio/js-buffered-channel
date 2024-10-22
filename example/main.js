@@ -8,7 +8,13 @@ const worker = new Worker(new URL('worker.js', import.meta.url), { type: 'module
 
 const messageChannel = new MessageChannel()
 const bufferSize = 4
-const mainChannel = new BufferedChannel(messageChannel.port1, bufferSize, 'main')
+const mainChannel = new BufferedChannel(
+  messageChannel.port1,
+  bufferSize,
+  {
+    debug: true, name: 'main'
+  }
+)
 
 // Send the other port to the worker
 worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
@@ -28,7 +34,7 @@ async function * generateMessages (count) {
 // Define the send function
 const sendFunc = async (msg) => {
   await mainChannel.send(msg)
-  console.log(`Main Sent: ${msg}`)
+  // console.log(`Main Sent: ${msg}`)
 }
 
 /**
@@ -77,6 +83,6 @@ async function sendMessages (messageIterator, sendFunc, bufferSize) {
 // Receiving messages
 ; (async () => {
   for await (const msg of mainChannel.receive) {
-    console.log(`Main Received: ${msg}`)
+    // console.log(`Main Received: ${msg}`)
   }
 })()

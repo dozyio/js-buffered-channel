@@ -1,17 +1,25 @@
 /* eslint-disable no-console */
 // src/semaphore.ts
 
+export interface SemaphoreOpts {
+  debug?: boolean
+  name?: string
+}
+
 export default class Semaphore {
   private permits: number
   private readonly waiting: Array<() => void> = []
   private readonly maxPermits: number
-  public readonly what: string
+  private readonly debug: boolean
+  private readonly name: string
 
-  constructor (permits: number, what: string) {
+  constructor (permits: number, opts: SemaphoreOpts = {}) {
     this.permits = permits
     this.maxPermits = permits
-    this.what = what
-    console.log(`Semaphore initialized with maxPermits: ${this.maxPermits} for ${this.what}`)
+    this.debug = opts.debug ?? false
+    this.name = opts.name ?? ''
+
+    console.log(`Semaphore initialized with maxPermits: ${this.maxPermits} for ${this.name}`)
   }
 
   /**
@@ -20,14 +28,20 @@ export default class Semaphore {
    * Otherwise, the request waits until a permit is released.
    */
   async acquire (): Promise<void> {
-    console.log(`${this.what} Semaphore: Attempting to acquire a permit. Current permits: ${this.permits}`)
+    if (this.debug) {
+      console.log(`${this.name} Semaphore: Attempting to acquire a permit. Current permits: ${this.permits}`)
+    }
     if (this.permits > 0) {
       this.permits--
-      console.log(`${this.what} Semaphore: Permit acquired. Remaining permits: ${this.permits}`)
+      if (this.debug) {
+        console.log(`${this.name} Semaphore: Permit acquired. Remaining permits: ${this.permits}`)
+      }
       return
     }
 
-    console.log(`${this.what} Semaphore: No permits available. Queuing the request.`)
+    if (this.debug) {
+      console.log(`${this.name} Semaphore: No permits available. Queuing the request.`)
+    }
     return new Promise<void>((resolve) => {
       this.waiting.push(resolve)
     })
@@ -38,11 +52,15 @@ export default class Semaphore {
    * If there are pending acquire requests, the next one is granted a permit.
    */
   release (): void {
-    console.log(`${this.what} Semaphore: Releasing a permit.`)
+    if (this.debug) {
+      console.log(`${this.name} Semaphore: Releasing a permit.`)
+    }
     if (this.waiting.length > 0) {
       const resolve = this.waiting.shift()
       if (resolve !== undefined) {
-        console.log(`${this.what} Semaphore: Resolving a queued acquire request.`)
+        if (this.debug) {
+          console.log(`${this.name} Semaphore: Resolving a queued acquire request.`)
+        }
         resolve()
         // No change to permits since a permit is immediately granted to the next requester
         return
@@ -51,9 +69,13 @@ export default class Semaphore {
 
     if (this.permits < this.maxPermits) {
       this.permits++
-      console.log(`${this.what} Semaphore: Permit released. Available permits: ${this.permits}`)
+      if (this.debug) {
+        console.log(`${this.name} Semaphore: Permit released. Available permits: ${this.permits}`)
+      }
     } else {
-      console.warn(`${this.what} Semaphore: Attempted to release more permits than the maximum.`)
+      if (this.debug) {
+        console.warn(`${this.name} Semaphore: Attempted to release more permits than the maximum.`)
+      }
     }
   }
 }
