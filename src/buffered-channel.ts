@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 // src/buffered-channel.ts
 
-import Semaphore from './semaphore'
+import { Semaphore, type SemaphoreOpts } from './semaphore'
 import type { MessagePortLike } from './types'
 
 export interface BufferedChannelOpts {
@@ -75,15 +75,19 @@ export class BufferedChannel<T = any> {
     this.name = opts.name ?? ''
     this.throwOnError = opts.throwOnError ?? false
 
-    this.semaphore = new Semaphore(bufferSize, { debug: this.debug, name: `${this.name}-semaphore` })
+    const semaphoreOpts: SemaphoreOpts = {
+      debug: this.debug,
+      name: `${this.name}-semaphore`
+    }
+    this.semaphore = new Semaphore(bufferSize, semaphoreOpts)
 
     // Initialize the port listener based on available methods
-    if ('on' in this.port && typeof this.port.on === 'function') {
+    if ('on' in this.port && typeof this.port.on === 'function') { // Node.js environment
       // Node.js environment
       this.port.on('message', (data: any) => {
         this.handleIncoming(data)
       })
-    } else if ('addEventListener' in this.port && typeof this.port.addEventListener === 'function') {
+    } else if ('addEventListener' in this.port && typeof this.port.addEventListener === 'function') { // Browser environment
       // Browser environment
       this.port.addEventListener('message', (event: MessageEvent) => {
         this.handleIncoming(event.data)

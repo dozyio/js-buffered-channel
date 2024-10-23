@@ -25,7 +25,7 @@ const mainChannel = new BufferedChannel(
 worker.postMessage({ type: 'init', port: messageChannel.port2 }, [messageChannel.port2])
 
 /**
- * Async generator that yields data with a simulated delay.
+ * Async generator that yields data.
  *
  * @param {number} count - The total number of data items to generate.
  */

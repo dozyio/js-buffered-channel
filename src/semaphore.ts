@@ -6,7 +6,7 @@ export interface SemaphoreOpts {
   name?: string
 }
 
-export default class Semaphore {
+export class Semaphore {
   private permits: number
   private readonly waiting: Array<() => void> = []
   private readonly maxPermits: number
