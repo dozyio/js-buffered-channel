@@ -10,4 +10,3 @@ export interface MessagePortLike {
   addEventListener(type: 'message', listener: (event: MessageEvent) => void): void
   removeEventListener(type: 'message', listener: (event: MessageEvent) => void): void
 }
-

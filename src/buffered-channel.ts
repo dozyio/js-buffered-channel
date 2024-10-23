@@ -329,4 +329,24 @@ export class BufferedChannel<T = any> {
     const averageLatency = this.receivedAcksCount > 0 ? this.totalLatency / this.receivedAcksCount : 0
     console.info(`${this.name} BufferedChannel Performance Metrics: Sent Messages: ${this.sentMessagesCount}, Received Acks: ${this.receivedAcksCount}, Average Ack Latency: ${averageLatency.toFixed(2)} ms`)
   }
+
+  get getSentMessagesCount (): number {
+    return this.sentMessagesCount
+  }
+
+  get getReceivedAcksCount (): number {
+    return this.receivedAcksCount
+  }
+
+  get getTotalLatency (): number {
+    return this.totalLatency
+  }
+
+  get getErrorCount (): number {
+    return this.errorCount
+  }
+
+  close (): void {
+    this.port.close()
+  }
 }

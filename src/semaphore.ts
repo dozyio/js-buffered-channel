@@ -78,4 +78,12 @@ export class Semaphore {
       }
     }
   }
+
+  get getPermits (): number {
+    return this.permits
+  }
+
+  get getMaxPermits (): number {
+    return this.permits
+  }
 }

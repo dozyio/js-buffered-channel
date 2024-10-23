@@ -10,7 +10,7 @@ function generateUniqueId () {
   return `msg-${++messageCounter}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
-// Create a Web Worker with type 'module' using new URL for proper bundling
+// Create a Web Worker with type 'module'
 const worker = new Worker(new URL('worker.js', import.meta.url), { type: 'module' })
 
 const messageChannel = new MessageChannel()

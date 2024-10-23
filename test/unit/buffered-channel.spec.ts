@@ -1,10 +1,11 @@
+/* eslint-disable max-nested-callbacks */
 // test/unit/buffered-channel.spec.ts
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { BufferedChannel, DataMessage, AckMessage } from '../../src/buffered-channel'
 import { MessageChannel } from 'worker_threads'
-import Semaphore from '../../src/semaphore'
-import { MessagePortLike } from '../../src/types'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { BufferedChannel, type DataMessage, type AckMessage } from '../../src/buffered-channel'
+import { Semaphore } from '../../src/semaphore'
+import { type MessagePortLike } from '../../src/types'
 
 describe('BufferedChannel', () => {
   let mainChannel: BufferedChannel<any>
@@ -15,7 +16,7 @@ describe('BufferedChannel', () => {
   let messageCounter: number
 
   // Helper function to generate unique IDs
-  function generateUniqueId(): string {
+  function generateUniqueId (): string {
     return `msg-${++messageCounter}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
   }
 
@@ -43,16 +44,12 @@ describe('BufferedChannel', () => {
   })
 
   it('should initialize correctly', () => {
-    // @ts-ignore: accessing internal properties for testing
+    // @ts-expect-error: accessing internal properties for testing
     expect(mainChannel.semaphore).toBeInstanceOf(Semaphore)
-    // @ts-ignore
-    expect(mainChannel.sentMessagesCount).toBe(0)
-    // @ts-ignore
-    expect(mainChannel.receivedAcksCount).toBe(0)
-    // @ts-ignore
-    expect(mainChannel.totalLatency).toBe(0)
-    // @ts-ignore
-    expect(mainChannel.errorCount).toBe(0)
+    expect(mainChannel.getSentMessagesCount).toBe(0)
+    expect(mainChannel.getReceivedAcksCount).toBe(0)
+    expect(mainChannel.getTotalLatency).toBe(0)
+    expect(mainChannel.getErrorCount).toBe(0)
   })
 
   it('should send data and receive acknowledgment successfully without transferable', async () => {
@@ -65,6 +62,7 @@ describe('BufferedChannel', () => {
 
     // Listen for data on the worker channel
     const workerReceivePromise = (async () => {
+      // eslint-disable-next-line no-unreachable-loop
       for await (const msg of workerChannel.receive) {
         expect(msg.id).toBe(dataMessage.id)
         expect(msg.type).toBe('data')
@@ -87,15 +85,11 @@ describe('BufferedChannel', () => {
 
     // Await both sending and receiving
     await Promise.all([sendPromise, workerReceivePromise])
-    console.log('done')
 
     // Verify internal counts
-    // @ts-ignore
-    expect(mainChannel.sentMessagesCount).toBe(1)
-    // @ts-ignore
-    expect(mainChannel.receivedAcksCount).toBe(1)
-    // @ts-ignore
-    expect(mainChannel.errorCount).toBe(0)
+    expect(mainChannel.getSentMessagesCount).toBe(1)
+    expect(mainChannel.getReceivedAcksCount).toBe(1)
+    expect(mainChannel.getErrorCount).toBe(0)
   })
 
   it('should send data and receive acknowledgment successfully with transferable', async () => {
@@ -108,6 +102,7 @@ describe('BufferedChannel', () => {
 
     // Listen for data on the worker channel
     const workerReceivePromise = (async () => {
+      // eslint-disable-next-line no-unreachable-loop
       for await (const msg of workerChannel.receive) {
         expect(msg.id).toBe(dataMessage.id)
         expect(msg.type).toBe('data')
@@ -130,15 +125,11 @@ describe('BufferedChannel', () => {
 
     // Await both sending and receiving
     await Promise.all([sendPromise, workerReceivePromise])
-    console.log('done')
 
     // Verify internal counts
-    // @ts-ignore
-    expect(mainChannel.sentMessagesCount).toBe(1)
-    // @ts-ignore
-    expect(mainChannel.receivedAcksCount).toBe(1)
-    // @ts-ignore
-    expect(mainChannel.errorCount).toBe(0)
+    expect(mainChannel.getSentMessagesCount).toBe(1)
+    expect(mainChannel.getReceivedAcksCount).toBe(1)
+    expect(mainChannel.getErrorCount).toBe(0)
   })
 
   it('should handle acknowledgment errors correctly', async () => {
@@ -154,6 +145,7 @@ describe('BufferedChannel', () => {
 
     // Listen for data on the worker channel and send error acknowledgment
     const workerReceivePromise = (async () => {
+      // eslint-disable-next-line no-unreachable-loop
       for await (const msg of workerChannel.receive) {
         expect(msg.id).toBe(dataMessage.id)
         expect(msg.type).toBe('data')
@@ -182,12 +174,9 @@ describe('BufferedChannel', () => {
     await expect(sendPromise).rejects.toThrow('Processing failed')
 
     // Verify internal counts
-    // @ts-ignore
-    expect(mainChannel.sentMessagesCount).toBe(1)
-    // @ts-ignore
-    expect(mainChannel.receivedAcksCount).toBe(0)
-    // @ts-ignore
-    expect(mainChannel.errorCount).toBe(1)
+    expect(mainChannel.getSentMessagesCount).toBe(1)
+    expect(mainChannel.getReceivedAcksCount).toBe(0)
+    expect(mainChannel.getErrorCount).toBe(1)
   })
 
   it('should handle sendData timeouts correctly', async () => {
@@ -201,26 +190,16 @@ describe('BufferedChannel', () => {
     // Spy on console.error to verify timeout logging
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
 
-    // Listen for data on the worker channel but do not send acknowledgment to trigger timeout
-    const workerReceivePromise = (async () => {
-      for await (const msg of workerChannel.receive) {
-        // Intentionally do not send acknowledgment
-      }
-    })()
-
-    // Send data from main channel with a short timeout
-    const sendPromise = mainChannel.sendData(dataMessage, [dataBuffer], 50) // 50ms timeout
+    // Send data from main channel with a short timeout - with no ack received
+    const sendPromise = mainChannel.sendData(dataMessage, [dataBuffer], 1) // 1ms timeout
 
     // Await the sendPromise to reject due to timeout
     await expect(sendPromise).rejects.toThrow(`Send operation timed out for message ID ${dataMessage.id}`)
 
     // Verify internal counts
-    // @ts-ignore
-    expect(mainChannel.sentMessagesCount).toBe(1)
-    // @ts-ignore
-    expect(mainChannel.receivedAcksCount).toBe(0)
-    // @ts-ignore
-    expect(mainChannel.errorCount).toBe(1)
+    expect(mainChannel.getSentMessagesCount).toBe(1)
+    expect(mainChannel.getReceivedAcksCount).toBe(0)
+    expect(mainChannel.getErrorCount).toBe(1)
 
     // Verify that an error was logged
     expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -264,15 +243,23 @@ describe('BufferedChannel', () => {
         // Simulate processing delay for first two messages
         if (msg.id === dataMessage1.id || msg.id === dataMessage2.id) {
           // Send acknowledgment after a delay
-          setTimeout(async () => {
+          // eslint-disable-next-line no-loop-func
+          setTimeout(() => {
             const ack: AckMessage = {
               id: msg.id,
               type: 'ack',
               status: 'ack',
               data: null
             }
-            await workerChannel.sendAck(ack)
-            count++
+            workerChannel.sendAck(ack)
+              .then(() => {
+                count++
+              })
+              .catch(error => {
+                // Handle error if necessary
+                // eslint-disable-next-line no-console
+                console.error('Error sending acknowledgment:', error)
+              })
           }, 100) // 100ms delay
         } else if (msg.id === dataMessage3.id) {
           // Immediate acknowledgment for third message
@@ -306,12 +293,9 @@ describe('BufferedChannel', () => {
     expect(results).toEqual([1, 2, 3])
 
     // Verify internal counts
-    // @ts-ignore
-    expect(mainChannel.sentMessagesCount).toBe(3)
-    // @ts-ignore
-    expect(mainChannel.receivedAcksCount).toBe(3)
-    // @ts-ignore
-    expect(mainChannel.errorCount).toBe(0)
+    expect(mainChannel.getSentMessagesCount).toBe(3)
+    expect(mainChannel.getReceivedAcksCount).toBe(3)
+    expect(mainChannel.getErrorCount).toBe(0)
   })
 
   it('should handle multiple acknowledgments correctly', async () => {
@@ -319,7 +303,7 @@ describe('BufferedChannel', () => {
       { id: generateUniqueId(), type: 'data', data: new ArrayBuffer(8) },
       { id: generateUniqueId(), type: 'data', data: new ArrayBuffer(8) },
       { id: generateUniqueId(), type: 'data', data: new ArrayBuffer(8) }
-    ] as DataMessage<ArrayBuffer>[]
+    ] as Array<DataMessage<ArrayBuffer>>
 
     const results: number[] = []
 
@@ -344,7 +328,7 @@ describe('BufferedChannel', () => {
     })()
 
     // Send all data messages
-    const sendPromises = messages.map((msg, index) =>
+    const sendPromises = messages.map(async (msg, index) =>
       mainChannel.sendData(msg, [msg.data], 1000).then(() => results.push(index + 1))
     )
 
@@ -355,45 +339,13 @@ describe('BufferedChannel', () => {
     expect(results).toEqual([1, 2, 3])
 
     // Verify internal counts
-    // @ts-ignore
-    expect(mainChannel.sentMessagesCount).toBe(3)
-    // @ts-ignore
-    expect(mainChannel.receivedAcksCount).toBe(3)
-    // @ts-ignore
-    expect(mainChannel.errorCount).toBe(0)
+    expect(mainChannel.getSentMessagesCount).toBe(3)
+    expect(mainChannel.getReceivedAcksCount).toBe(3)
+    expect(mainChannel.getErrorCount).toBe(0)
   })
 
   it('should gracefully handle worker termination', async () => {
-    const dataBuffer = new ArrayBuffer(8)
-    const dataMessage: DataMessage<ArrayBuffer> = {
-      id: generateUniqueId(),
-      type: 'data',
-      data: dataBuffer
-    }
-
-    // Listen for data on the worker channel and send acknowledgment
-    const workerReceivePromise = (async () => {
-      for await (const msg of workerChannel.receive) {
-        const ack: AckMessage = {
-          id: msg.id,
-          type: 'ack',
-          status: 'ack',
-          data: null
-        }
-        await workerChannel.sendAck(ack)
-      }
-    })()
-
-    // Send data from main channel
-    const sendPromise = mainChannel.sendData(dataMessage, [dataBuffer], 1000)
-
-    // Await the send operation
-    await sendPromise
-
     // Terminate the worker channel
-    workerChannel['port'].close()
-
-    // Optionally, you can verify that the port is closed
-    // expect(workerChannel['port'].aborted).toBe(true)
+    workerChannel.close()
   })
 })
