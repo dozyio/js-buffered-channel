@@ -258,6 +258,8 @@ describe('BufferedChannel', () => {
 
     // Listen for data on the worker channel
     const workerReceivePromise = (async () => {
+      let count = 0
+
       for await (const msg of workerChannel.receive) {
         // Simulate processing delay for first two messages
         if (msg.id === dataMessage1.id || msg.id === dataMessage2.id) {
@@ -270,6 +272,7 @@ describe('BufferedChannel', () => {
               data: null
             }
             await workerChannel.sendAck(ack)
+            count++
           }, 100) // 100ms delay
         } else if (msg.id === dataMessage3.id) {
           // Immediate acknowledgment for third message
@@ -280,6 +283,11 @@ describe('BufferedChannel', () => {
             data: null
           }
           await workerChannel.sendAck(ack)
+          count++
+        }
+
+        if (count === 3) {
+          break
         }
       }
     })()
@@ -317,6 +325,7 @@ describe('BufferedChannel', () => {
 
     // Listen for data on the worker channel and send acknowledgments
     const workerReceivePromise = (async () => {
+      let count = 0
       for await (const msg of workerChannel.receive) {
         // Immediate acknowledgment
         const ack: AckMessage = {
@@ -326,6 +335,11 @@ describe('BufferedChannel', () => {
           data: null
         }
         await workerChannel.sendAck(ack)
+        count++
+
+        if (count === 3) {
+          break
+        }
       }
     })()
 
