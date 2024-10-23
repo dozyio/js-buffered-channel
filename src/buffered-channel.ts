@@ -2,6 +2,7 @@
 // src/buffered-channel.ts
 
 import Semaphore from './semaphore'
+import type { MessagePortLike } from './types'
 
 export interface BufferedChannelOpts {
   /**
@@ -37,13 +38,13 @@ export interface DataMessage<T = any> extends BaseMessage {
 export interface AckMessage extends BaseMessage {
   type: 'ack'
   status: 'ack' | 'error'
-  data: any
+  data?: any
 }
 
 export type IncomingMessage<T = any> = DataMessage<T> | AckMessage
 
 export class BufferedChannel<T = any> {
-  private readonly port: MessagePort
+  private readonly port: MessagePortLike
   private readonly semaphore: Semaphore
   private readonly debug: boolean
   private readonly name: string
@@ -57,7 +58,7 @@ export class BufferedChannel<T = any> {
   private readonly sendResolvers = new Map<string, {
     resolve(): void
     reject(error: any): void
-    timeout?: number
+    timeout?: number | any
   }>()
 
   /**
@@ -67,7 +68,7 @@ export class BufferedChannel<T = any> {
    * @param bufferSize - The maximum number of concurrent send operations.
    * @param opts - Optional configuration options.
    */
-  constructor (port: MessagePort, bufferSize: number = 1, opts: BufferedChannelOpts = {}) {
+  constructor (port: MessagePortLike, bufferSize: number = 1, opts: BufferedChannelOpts = {}) {
     this.port = port
 
     this.debug = opts.debug ?? false
@@ -76,9 +77,25 @@ export class BufferedChannel<T = any> {
 
     this.semaphore = new Semaphore(bufferSize, { debug: this.debug, name: `${this.name}-semaphore` })
 
-    // Initialize the port listener
-    this.port.onmessage = (event) => {
-      this.handleIncoming(event.data)
+    // Initialize the port listener based on available methods
+    if ('on' in this.port && typeof this.port.on === 'function') {
+      // Node.js environment
+      this.port.on('message', (data: any) => {
+        this.handleIncoming(data)
+      })
+    } else if ('addEventListener' in this.port && typeof this.port.addEventListener === 'function') {
+      // Browser environment
+      this.port.addEventListener('message', (event: MessageEvent) => {
+        this.handleIncoming(event.data)
+      })
+
+      this.port.start()
+
+      if (this.debug) {
+        console.log(`BufferedChannel (${this.name}): Port started in browser environment.`)
+      }
+    } else {
+      throw new Error('Unsupported MessagePort-like implementation.')
     }
   }
 
@@ -187,7 +204,7 @@ export class BufferedChannel<T = any> {
     return new Promise<void>((resolve, reject) => {
       // Set up the timeout only if a positive timeout value is provided
       if (typeof timeout === 'number' && timeout > 0) {
-        const timer = window.setTimeout(() => {
+        const timer = globalThis.setTimeout(() => {
           if (this.throwOnError) {
             throw new Error(`Send operation timed out for message ID ${message.id}`)
           }
