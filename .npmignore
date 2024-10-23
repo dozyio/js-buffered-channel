@@ -1,0 +1,9 @@
+node_modules
+test-results
+coverage
+/src/
+test
+example
+vite.config.js
+vitest.config.js
+tsconfig.json

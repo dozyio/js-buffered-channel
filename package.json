@@ -1,8 +1,8 @@
 {
   "name": "buffered-channel",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "A JS/TS buffered channel",
-  "main": "index.js",
+  "main": "dist/buffered-channel.js",
   "type": "module",
   "author": "dozyio",
   "license": "MIT",
@@ -12,6 +12,12 @@
     "web worker",
     "transferable objects"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
   "eslintConfig": {
     "extends": "ipfs",
     "parserOptions": {
