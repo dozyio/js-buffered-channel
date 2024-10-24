@@ -22,7 +22,7 @@ yarn add buffered-channel
 
 ## Usage
 
-BufferedChannel can be used in both **Node.js** and **browser** environments. See the [examples](examples) folder for a browser example.
+BufferedChannel can be used in both **Node.js** and **browser** environments. See the [example](example) folder for a browser example.
 
 ## API Reference
 
@@ -109,6 +109,6 @@ constructor(
 - **errorCountPublic**: `number`  
   Number of errors encountered during message processing.
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
