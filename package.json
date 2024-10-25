@@ -1,6 +1,6 @@
 {
   "name": "buffered-channel",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A JS/TS buffered channel",
   "main": "dist/buffered-channel.js",
   "type": "module",
